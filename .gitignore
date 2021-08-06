@@ -1,3 +1,5 @@
+eclipse.settings.xml
+build/
 .DS_Store
 Mozzi-resources
 *.out
