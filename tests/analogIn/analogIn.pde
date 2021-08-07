@@ -1,43 +1,122 @@
 import processing.serial.*;
 Serial myPort;
 
-void setup() {
-  size(1024, 1024);
+int[] levels = { 250, 100, 100,  0 };
+int[] times  = {  50, 100, 200, 25 };
+int[] Xs = new int[4];
+int[] Ys = new int[4];
 
-  println("Available serial ports:");
-  println((Object[])Serial.list());
+static final char[] levelCommands = { 'a', 'd', 's', 'r' };
+static final char[] timeCommands  = { 'A', 'D', 'S', 'R' };
 
-  // myPort = new Serial(this, Serial.list()[0], 9600);  
-  myPort = new Serial(this, "/dev/ttyUSB0", 115200);
+int mouseFromX, mouseFromY, squareFromX, squareFromY;
+int currentSquare = -1;
+boolean haveToDraw = true;
+
+static final int TOLERANCE = 10;
+
+void mouseMoved() {
+	int newSquare = -1;
+	for (int i = 0; i < 4; i++) {
+		if (abs(mouseX-Xs[i]) < TOLERANCE && abs(mouseY-Ys[i]) < TOLERANCE) {
+			mouseFromX = mouseX;
+			mouseFromY = mouseY;
+			squareFromX = Xs[i];
+			squareFromY = Ys[i];
+			newSquare = i;
+			break;
+		}
+	}
+	if (newSquare != currentSquare) {
+		currentSquare = newSquare;
+		haveToDraw = true;
+	}
 }
 
-int[] values;
+void mouseDragged() {
+	if (currentSquare != -1) {
+		// update coords
+		int dX = mouseX - mouseFromX;
+		int dY = mouseY - mouseFromY;
+		if (dX != 0 || dY != 0) {
+			Ys[currentSquare] += dY;
+			for (int i = currentSquare; i < 4; i++) {
+				Xs[i] += dX;
+			}
+			mouseFromX = mouseX;
+			mouseFromY = mouseY;
+//			println("drag", currentSquare, Xs[currentSquare], Ys[currentSquare]);
+			haveToDraw = true;
+		}
+	}
+
+//	return true; //result;
+}
+
+void buttonReleased() {
+	reverseCoords();
+}
+
+void prepareCoords() {
+	int x0 = 10;
+	for (int i = 0; i < 4; i++) {
+		Xs[i] = x0 + times[i];
+		Ys[i] = 266 - levels[i];
+		x0 = Xs[i];
+	}
+	haveToDraw = true;
+}
+
+void reverseCoords() {
+	int t0 = 10;
+	for (int i = 0; i < 4; i++) {
+		times[i] = Xs[i] - t0;
+		t0 = Xs[i];
+		levels[i] = 266 - Ys[i];
+	}
+}
+
+void setup() {
+	size(1020, 276);
+
+//  println("Available serial ports:");
+//  println((Object[])Serial.list());
+//  myPort = new Serial(this, Serial.list()[0], 9600);
+
+	myPort = new Serial(this, "/dev/ttyUSB0", 115200);
+
+	prepareCoords();
+}
 
 void draw() {
-  while (myPort.available() > 0) {
-    String inBuffer = myPort.readString();   
-    if (inBuffer != null) {
-      values = int(inBuffer.split("[\t\n\r]"));
-      println(values);
-    }
+	// TODO : read serial and print result to follow command results
+	if (haveToDraw) {
+		clear();
+		background(204);
+		rectMode (CENTER);
+		stroke(0);
 
-    if (values.length >= 8) {
-      clear();
-      background(204);
-      int timeRange = values[1] + values[3] + values[5] + values[7];
-      
-      stroke(0);
-      int x0 = 0, y0 = 0;
-      for (int i = 0; i < 8; i+=2) {
-        int x1 = values[i+1] * 1024 / timeRange, y1 = values[i];
-        line(x0, 1024-y0, x0+x1, 1024-y1);
-        x0 += x1;
-        y0 = y1;
-      }
-    }
-  }
+		int x0 = 10, y0 = 266;
+		for (int i = 0; i < 4; i++) {
+			line(x0, y0, Xs[i], Ys[i]);
+			x0 = Xs[i];
+			y0 = Ys[i];
+		}
+		for (int i = 0; i < 4; i++) {
+			fill(i == currentSquare ? 0 : 230);
+			square(Xs[i], Ys[i], 6);
+		}
 
-  // write the current X-position of the mouse to the serial port as
-  // a single byte
-  // port.write(mouseX);
+		for (int i = 0; i < 4; i++) {
+			myPort.write(levelCommands[i]);
+			myPort.write(Integer.toString(levels[i]));
+			myPort.write('\n');
+
+			myPort.write(timeCommands[i]);
+			myPort.write(Integer.toString(times[i]));
+			myPort.write('\n');
+		}
+
+		haveToDraw = false;
+	}
 }
