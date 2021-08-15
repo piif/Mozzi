@@ -41,6 +41,7 @@
     Tim Barrass 2012-13, CC by-nc-sa.
 */
 
+#define AUDIO_MODE HIFI
 #include <MozziGuts.h>
 #include <Oscil.h> // oscillator template
 #include <tables/sin2048_int8.h> // sine table for oscillator
