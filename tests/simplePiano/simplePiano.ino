@@ -82,7 +82,6 @@ void setup() {
 
 	// Configure the keyboard library
 	keyboard.begin( DATAPIN, IRQPIN );
-	Serial.begin( 115200 );
 	Serial.println( "PS2 Advanced Key Simple Test:" );
 }
 
