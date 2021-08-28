@@ -16,7 +16,7 @@
     Tim Barrass 2012, CC by-nc-sa.
 */
 
-#define AUDIO_MODE HIFI
+//#define AUDIO_MODE HIFI
 #include <MozziGuts.h>
 #include <Oscil.h>
 #include <mozzi_midi.h>
@@ -62,33 +62,37 @@ Oscil <TRIANGLE512_NUM_CELLS, AUDIO_RATE> aSin1(TRIANGLE512_DATA);
 
 #include <Sample.h>
 
-#include <samples/bamboo/bamboo_00_2048_int8.h>
-#include <samples/bamboo/bamboo_01_2048_int8.h>
-#include <samples/bamboo/bamboo_02_2048_int8.h>
-#include <samples/bamboo/bamboo_03_2048_int8.h>
-#include <samples/bamboo/bamboo_04_2048_int8.h>
-#include <samples/bamboo/bamboo_05_2048_int8.h>
-#include <samples/bamboo/bamboo_06_2048_int8.h>
-#include <samples/bamboo/bamboo_07_2048_int8.h>
-#include <samples/bamboo/bamboo_08_2048_int8.h>
-#include <samples/bamboo/bamboo_09_2048_int8.h>
-//#include <samples/bamboo/bamboo_10_2048_int8.h>
+#include <tests/bamboos/bamboo_00_1024_int8.h> // G  ?
+#include <tests/bamboos/bamboo_01_1024_int8.h> // G# ?
+#include <tests/bamboos/bamboo_02_1024_int8.h> // B  ?
+#include <tests/bamboos/bamboo_03_1024_int8.h> // D  ?
+#include <tests/bamboos/bamboo_04_1024_int8.h> // E  ?
+#include <tests/bamboos/bamboo_05_1024_int8.h> // G  ?
+#include <tests/bamboos/bamboo_06_1024_int8.h> // A  ?
+#include <tests/bamboos/bamboo_07_1024_int8.h> // B  ?
+#include <tests/bamboos/bamboo_08_1024_int8.h> // D  ?
+#include <tests/bamboos/bamboo_09_1024_int8.h> // E  ?
+#include <tests/bamboos/bamboo_10_1024_int8.h> // G  ?
+
+#include <tests/waves/abomb_mod_int8.h>
 
 const int8_t* tables[] ={
-  BAMBOO_00_2048_DATA,
-  BAMBOO_01_2048_DATA,
-  BAMBOO_02_2048_DATA,
-  BAMBOO_03_2048_DATA,
-  BAMBOO_04_2048_DATA,
-  BAMBOO_05_2048_DATA,
-  BAMBOO_06_2048_DATA,
-  BAMBOO_07_2048_DATA,
-  BAMBOO_08_2048_DATA,
-  BAMBOO_09_2048_DATA/*,
-  BAMBOO_10_2048_DATA*/
+  BAMBOO_00_1024_DATA,
+  BAMBOO_01_1024_DATA,
+  BAMBOO_02_1024_DATA,
+  BAMBOO_03_1024_DATA,
+  BAMBOO_04_1024_DATA,
+  BAMBOO_05_1024_DATA,
+  BAMBOO_06_1024_DATA,
+  BAMBOO_07_1024_DATA,
+  BAMBOO_08_1024_DATA,
+  BAMBOO_09_1024_DATA,
+  BAMBOO_10_1024_DATA
 };
 
-Sample <2048, AUDIO_RATE> sample;
+Sample <1024, AUDIO_RATE> bamboo;
+
+Sample <ABOMB_NUM_CELLS, AUDIO_RATE> sample(ABOMB_DATA);
 
 ADSR <AUDIO_RATE, AUDIO_RATE> env1;
 Oscil <SIN1024_NUM_CELLS, AUDIO_RATE> env2(SIN1024_DATA);
@@ -149,9 +153,21 @@ int8_t currentSample = -1;
 
 void setSample(int8_t s) {
 	currentSample = s;
-    sample.setTable(tables[currentSample]);
-    sample.start();
-	Serial.print("sample ");Serial.println(currentSample);
+	if (currentSample == 100) {
+		sample.setStart(0);
+		sample.setEnd(3799);
+		sample.start();
+		Serial.println("sample 2");
+	} else if (currentSample == 101) {
+		sample.setStart(3800);
+		sample.setEnd(3800+5999);
+		sample.start();
+		Serial.println("sample 1");
+	} else {
+		bamboo.setTable(tables[currentSample]);
+		bamboo.start();
+		Serial.print("sample ");Serial.println(currentSample);
+	}
 }
 
 int8_t currentNote = 0;
@@ -170,9 +186,9 @@ void setNote(int8_t n) {
 
 PS2KeyAdvanced keyboard;
 
-#define FIRST_NOTE 60 // midi code for C
-//              Q=C=36  W=C#  S=D   X=D#  D=E   F=F   V=F#  G=G   B=G#  H=A   N=A#  J=B   K=C   ;=C#  L=D   :=D#  M=E   ù=F   end
-byte keyMap[] = { 0x41, 0x5A, 0x53, 0x58, 0x44, 0x46, 0x56, 0x47, 0x42, 0x48, 0x4E, 0x4A, 0x4B, 0x3B, 0x4C, 0x3D, 0x5B, 0x3A, 0x00 };
+#define FIRST_NOTE 59 // midi code for B
+//              Q=B=35  S=C   X=C#  D=D   C=D#  F=E   G=F   B=F#  H=G   N=G#  J=A   ,=A#  K=B   L=C   :=C#  M=D   !=D#  ù=E   *=F   end
+byte keyMap[] = { 0x41, 0x53, 0x58, 0x44, 0x43, 0x46, 0x47, 0x42, 0x48, 0x4E, 0x4A, 0x4D, 0x4B, 0x4C, 0X3D, 0x5B, 0x3E, 0x3A, 0x5C, 0x00 };
 
 word currentKey = 0;
 
@@ -189,12 +205,16 @@ void updateControl() {
 				}
 			} else {
 				Serial.print("code ");Serial.println(code, HEX);
-				if (code == PS2_KEY_0) {
+				if (code == PS2_KEY_BS) {
+					setSample(101);
+				} else if (code == PS2_KEY_EQUAL) {
+					setSample(100);
+				} else if (code == PS2_KEY_0) {
 					setSample(9);
 				} else if (code >= PS2_KEY_1 && code <= PS2_KEY_9) {
 					setSample(code - PS2_KEY_1);
-//				} else if (code == PS2_KEY_MINUS) {
-//					setSample(10);
+				} else if (code == PS2_KEY_MINUS) {
+					setSample(10);
 
 				} else if (code >= PS2_KEY_F1 && code <= PS2_KEY_F12) {
 					mode = code - PS2_KEY_F1;
@@ -263,15 +283,21 @@ AudioOutput_t updateAudio() {
 		}
 	}
 
-	if (currentSample != -1) {
+	if (currentSample == 100 || currentSample == 101) {
 		sampleValue = sample.next();
 		if (!sample.isPlaying()) {
 			currentSample = -1;
 			Serial.println("sample end");
 		}
+	} else if (currentSample != -1) {
+		sampleValue = bamboo.next();
+		if (!bamboo.isPlaying()) {
+			currentSample = -1;
+			Serial.println("sample end");
+		}
 	}
 
-	return MonoOutput::fromNBit(17, base*e + sampleValue*255);
+	return MonoOutput::fromNBit(17, base*e + (sampleValue<<6));
 }
 
 void setup(){
@@ -281,9 +307,13 @@ void setup(){
 	env1.setLevels(255, 150, 50, 0);
 	env1.setTimes(10, 200, 400, 100);
 
-    sample.setFreq((float) BAMBOO_00_2048_SAMPLERATE / (float) BAMBOO_00_2048_NUM_CELLS);
+	bamboo.setFreq((float) BAMBOO_00_1024_SAMPLERATE / (float) BAMBOO_00_1024_NUM_CELLS);
+	bamboo.setLoopingOff();
+	bamboo.rangeWholeSample();
+
+	sample.setFreq((float) ABOMB_SAMPLERATE / (float) ABOMB_NUM_CELLS);
     sample.setLoopingOff();
-    sample.rangeWholeSample();
+	sample.setTable(ABOMB_DATA);
 
 	startMozzi(CONTROL_RATE);
 	Serial.println("OK");
