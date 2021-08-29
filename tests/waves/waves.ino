@@ -1,22 +1,4 @@
-/*  Example playing a sinewave at a set frequency,
-    using Mozzi sonification library.
-
-    Demonstrates the use of Oscil to play a wavetable.
-
-    Circuit: Audio output on digital pin 9 on a Uno or similar, or
-    DAC/A14 on Teensy 3.1, or
-    check the README or http://sensorium.github.io/Mozzi/
-
-    Mozzi documentation/API
-		https://sensorium.github.io/Mozzi/doc/html/index.html
-
-		Mozzi help/discussion/announcements:
-    https://groups.google.com/forum/#!forum/mozzi-users
-
-    Tim Barrass 2012, CC by-nc-sa.
-*/
-
-//#define AUDIO_MODE HIFI
+#define AUDIO_MODE HIFI
 #include <MozziGuts.h>
 #include <Oscil.h>
 #include <mozzi_midi.h>
@@ -26,38 +8,30 @@
 #include <PS2KeyAdvanced.h>
 
 #include <tables/sin1024_int8.h>
+Oscil <SIN1024_NUM_CELLS, AUDIO_RATE> aSin0(SIN1024_DATA);
+#include <tables/triangle512_int8.h>
+Oscil <TRIANGLE512_NUM_CELLS, AUDIO_RATE> aSin1(TRIANGLE512_DATA);
 
 //#include <tables/chum78_int8.h>
-//#include <tables/chum9_int8.h>
-//#include <tables/square_analogue512_int8.h>
-//#include <tables/pinknoise8192_int8.h>
-//#include <tables/saw1024_int8.h>
-//
-//Oscil <SIN1024_NUM_CELLS, AUDIO_RATE> aSin0(SIN1024_DATA);
 //Oscil <CHUM78_NUM_CELLS, AUDIO_RATE> aSin1(CHUM78_DATA);
+//#include <tables/square_analogue512_int8.h>
 //Oscil <SQUARE_ANALOGUE512_NUM_CELLS, AUDIO_RATE> aSin2(SQUARE_ANALOGUE512_DATA);
-////Oscil <PINKNOISE8192_NUM_CELLS, AUDIO_RATE> aSin3(PINKNOISE8192_DATA);
+//#include <tables/pinknoise8192_int8.h>
+//Oscil <PINKNOISE8192_NUM_CELLS, AUDIO_RATE> aSin3(PINKNOISE8192_DATA);
+//#include <tables/saw1024_int8.h>
 //Oscil <SAW1024_NUM_CELLS, AUDIO_RATE> aSin3(SAW1024_DATA);
+//#include <tables/chum9_int8.h>
 //Oscil <CHUM9_NUM_CELLS, AUDIO_RATE> aSin4(CHUM9_DATA);
-//
-//ADSR <AUDIO_RATE, AUDIO_RATE> env1;
-//Oscil <SIN1024_NUM_CELLS, AUDIO_RATE> env2(SIN1024_DATA);
-//Oscil <SIN1024_NUM_CELLS, AUDIO_RATE> env3(SIN1024_DATA);
-//Oscil <SIN1024_NUM_CELLS, AUDIO_RATE> env4(SIN1024_DATA);
 
-#include <tables/triangle512_int8.h>
-#include <tables/triangle_analogue512_int8.h>
-//#include <tables/triangle_dist_cubed_2048_int8.h>
-//#include <tables/triangle_hermes_2048_int8.h>
-//#include <tables/triangle_valve_2048_int8.h>
-//#include <tables/triangle_warm8192_int8.h>
-//
-Oscil <SIN1024_NUM_CELLS, AUDIO_RATE> aSin0(SIN1024_DATA);
-Oscil <TRIANGLE512_NUM_CELLS, AUDIO_RATE> aSin1(TRIANGLE512_DATA);
+//#include <tables/triangle_analogue512_int8.h>
 //Oscil <TRIANGLE_ANALOGUE512_NUM_CELLS, AUDIO_RATE> aSin1(TRIANGLE_ANALOGUE512_DATA); // le même
+//#include <tables/triangle_dist_cubed_2048_int8.h>
 //Oscil <TRIANGLE_DIST_CUBED_2048_NUM_CELLS, AUDIO_RATE> aSin2(TRIANGLE_DIST_CUBED_2048_DATA);  // plus clair
+//#include <tables/triangle_hermes_2048_int8.h>
 //Oscil <TRIANGLE_HERMES_2048_NUM_CELLS, AUDIO_RATE> aSin3(TRIANGLE_HERMES_2048_DATA); // plus étouffé
+//#include <tables/triangle_valve_2048_int8.h>
 //Oscil <TRIANGLE_VALVE_2048_NUM_CELLS, AUDIO_RATE> aSin4(TRIANGLE_VALVE_2048_DATA); // Plus aigu ?
+//#include <tables/triangle_warm8192_int8.h>
 //Oscil <TRIANGLE_WARM8192_NUM_CELLS, AUDIO_RATE> aSin5(TRIANGLE_WARM8192_DATA); // noisy ?
 
 #include <Sample.h>
@@ -75,6 +49,7 @@ Oscil <TRIANGLE512_NUM_CELLS, AUDIO_RATE> aSin1(TRIANGLE512_DATA);
 #include <tests/bamboos/bamboo_10_1024_int8.h> // G  ?
 
 #include <tests/waves/abomb_mod_int8.h>
+Sample <ABOMB_NUM_CELLS, AUDIO_RATE> sample(ABOMB_DATA);
 
 const int8_t* tables[] ={
   BAMBOO_00_1024_DATA,
@@ -89,15 +64,10 @@ const int8_t* tables[] ={
   BAMBOO_09_1024_DATA,
   BAMBOO_10_1024_DATA
 };
-
 Sample <1024, AUDIO_RATE> bamboo;
 
-Sample <ABOMB_NUM_CELLS, AUDIO_RATE> sample(ABOMB_DATA);
-
-ADSR <AUDIO_RATE, AUDIO_RATE> env1;
-Oscil <SIN1024_NUM_CELLS, AUDIO_RATE> env2(SIN1024_DATA);
-Oscil <SIN1024_NUM_CELLS, AUDIO_RATE> env3(SIN1024_DATA);
-Oscil <SIN1024_NUM_CELLS, AUDIO_RATE> env4(SIN1024_DATA);
+ADSR <CONTROL_RATE, AUDIO_RATE> envADSR;
+Oscil <SIN1024_NUM_CELLS, AUDIO_RATE> envSin(SIN1024_DATA);
 
 // use #define for CONTROL_RATE, not a constant
 #define CONTROL_RATE 64 // Hz, powers of 2 are most reliable
@@ -134,16 +104,18 @@ byte envelop = 0;
 void updateEnvelop() {
 	switch (envelop) {
 	case 1:
-		env1.noteOn();
+		envADSR.setLevels(255, 150, 50, 0);
+		envADSR.setTimes(100, 100, 200, 100);
+		envADSR.noteOn(true);
 		break;
 	case 2:
-		env2.setFreq(1);
+		envSin.setFreq(1);
 		break;
 	case 3:
-		env3.setFreq(2);
+		envSin.setFreq(10);
 		break;
 	case 4:
-		env4.setFreq(10);
+		envSin.setFreq(10);
 		break;
 	}
 
@@ -166,7 +138,7 @@ void setSample(int8_t s) {
 	} else {
 		bamboo.setTable(tables[currentSample]);
 		bamboo.start();
-		Serial.print("sample ");Serial.println(currentSample);
+		Serial.print("bamboo ");Serial.println(currentSample);
 	}
 }
 
@@ -187,12 +159,20 @@ void setNote(int8_t n) {
 PS2KeyAdvanced keyboard;
 
 #define FIRST_NOTE 59 // midi code for B
-//              Q=B=35  S=C   X=C#  D=D   C=D#  F=E   G=F   B=F#  H=G   N=G#  J=A   ,=A#  K=B   L=C   :=C#  M=D   !=D#  ù=E   *=F   end
-byte keyMap[] = { 0x41, 0x53, 0x58, 0x44, 0x43, 0x46, 0x47, 0x42, 0x48, 0x4E, 0x4A, 0x4D, 0x4B, 0x4C, 0X3D, 0x5B, 0x3E, 0x3A, 0x5C, 0x00 };
+//             <=A#=34  Q=B   S=C   X=C#  D=D   C=D#  F=E   G=F   B=F#  H=G   N=G#  J=A   ,=A#  K=B   L=C   :=C#  M=D   !=D#  ù=E   *=F   end
+byte keyMap[] = { 0x8B, 0x41, 0x53, 0x58, 0x44, 0x43, 0x46, 0x47, 0x42, 0x48, 0x4E, 0x4A, 0x4D, 0x4B, 0x4C, 0X3D, 0x5B, 0x3E, 0x3A, 0x5C, 0x00 };
 
 word currentKey = 0;
 
 void updateControl() {
+	switch (envelop) {
+	case 1:
+		if (envADSR.playing()) {
+			envADSR.update();
+		}
+		break;
+	}
+
 	if( keyboard.available() ) {
 		// read the next key
 		word code = keyboard.read() & 0x80FF; // filter out shift, control, caps, ...
@@ -269,16 +249,16 @@ AudioOutput_t updateAudio() {
 
 		switch (envelop) {
 		case 1:
-			e = env1.next();
+			if (envADSR.playing()) {
+				e = envADSR.next();
+			} else {
+				e = 0;
+			}
 			break;
 		case 2:
-			e = env2.next();
-			break;
 		case 3:
-			e = env3.next();
-			break;
 		case 4:
-			e = env4.next();
+			e = envSin.next();
 			break;
 		}
 	}
@@ -297,15 +277,14 @@ AudioOutput_t updateAudio() {
 		}
 	}
 
-	return MonoOutput::fromNBit(17, base*e + (sampleValue<<6));
+	return MonoOutput::fromNBit(18, base * e + 512L * sampleValue);
 }
 
 void setup(){
 	Serial.begin(115200);
-	keyboard.begin(DATAPIN, IRQPIN);
 
-	env1.setLevels(255, 150, 50, 0);
-	env1.setTimes(10, 200, 400, 100);
+	keyboard.begin(DATAPIN, IRQPIN);
+	keyboard.setLock(PS2_LOCK_NUM);
 
 	bamboo.setFreq((float) BAMBOO_00_1024_SAMPLERATE / (float) BAMBOO_00_1024_NUM_CELLS);
 	bamboo.setLoopingOff();
