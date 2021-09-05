@@ -2,7 +2,7 @@
 
 #define DEBUG(args) args
 
-#define AUDIO_MODE HIFI
+#define AUDIO_MODE HIFI // MUST BE MODIFIED IN mozzi_config.h
 #include <MozziGuts.h>
 #include <Oscil.h>
 #include <mozzi_midi.h>
