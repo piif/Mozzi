@@ -11,32 +11,26 @@
 
 #include <PS2KeyAdvanced.h>
 
+#define NB_HARMONICS 5
+#define NB_TABLES 5
+
+typedef struct __attribute__((__packed__)) _harmonics {
+	byte ratios[NB_HARMONICS];
+	byte bitShift;
+} Harmonics;
+
+Harmonics harmonicTables[NB_TABLES] = {
+	{ {  1,  0,  0,  0,  0/*,  0*/ }, 0 }, // simple sinusoïde
+	{ {  8,  4,  0,  2,  0/*,  1*/ }, 4 }, // square
+	{ { 16,  7,  5,  1,  2/*,  0*/ }, 5 }, // 100, 30, 30, 10, 15 : piano ?
+	{ {  8, 16, 12,  6,  6/*,  0*/ }, 6 }, // 50%, 100, 75, 40, 40: trombone ?
+	{ { 20, 17, 13,  9,  6/*,  0*/ }, 7 }, // trumpet ?
+};
+
 #include <tables/sin1024_int8.h>
-Oscil <SIN1024_NUM_CELLS, AUDIO_RATE> aSin0(SIN1024_DATA);
-#include <tables/triangle512_int8.h>
-Oscil <TRIANGLE512_NUM_CELLS, AUDIO_RATE> aSin1(TRIANGLE512_DATA);
+Oscil <SIN1024_NUM_CELLS, AUDIO_RATE> harmonicOscils[NB_HARMONICS];
 
-//#include <tables/chum78_int8.h>
-//Oscil <CHUM78_NUM_CELLS, AUDIO_RATE> aSin1(CHUM78_DATA);
-//#include <tables/square_analogue512_int8.h>
-//Oscil <SQUARE_ANALOGUE512_NUM_CELLS, AUDIO_RATE> aSin2(SQUARE_ANALOGUE512_DATA);
-//#include <tables/pinknoise8192_int8.h>
-//Oscil <PINKNOISE8192_NUM_CELLS, AUDIO_RATE> aSin3(PINKNOISE8192_DATA);
-//#include <tables/saw1024_int8.h>
-//Oscil <SAW1024_NUM_CELLS, AUDIO_RATE> aSin3(SAW1024_DATA);
-//#include <tables/chum9_int8.h>
-//Oscil <CHUM9_NUM_CELLS, AUDIO_RATE> aSin4(CHUM9_DATA);
-
-//#include <tables/triangle_analogue512_int8.h>
-//Oscil <TRIANGLE_ANALOGUE512_NUM_CELLS, AUDIO_RATE> aSin1(TRIANGLE_ANALOGUE512_DATA); // le même
-//#include <tables/triangle_dist_cubed_2048_int8.h>
-//Oscil <TRIANGLE_DIST_CUBED_2048_NUM_CELLS, AUDIO_RATE> aSin2(TRIANGLE_DIST_CUBED_2048_DATA);  // plus clair
-//#include <tables/triangle_hermes_2048_int8.h>
-//Oscil <TRIANGLE_HERMES_2048_NUM_CELLS, AUDIO_RATE> aSin3(TRIANGLE_HERMES_2048_DATA); // plus étouffé
-//#include <tables/triangle_valve_2048_int8.h>
-//Oscil <TRIANGLE_VALVE_2048_NUM_CELLS, AUDIO_RATE> aSin4(TRIANGLE_VALVE_2048_DATA); // Plus aigu ?
-//#include <tables/triangle_warm8192_int8.h>
-//Oscil <TRIANGLE_WARM8192_NUM_CELLS, AUDIO_RATE> aSin5(TRIANGLE_WARM8192_DATA); // noisy ?
+byte currentHarmonic = 0;
 
 #include <Sample.h>
 
@@ -78,29 +72,8 @@ Oscil <SIN1024_NUM_CELLS, AUDIO_RATE> envSin(SIN1024_DATA);
 
 int baseFreq = 440;
 
-byte currentMode = 0;
-
 void updateMode() {
-	switch (currentMode) {
-	case 0:
-		aSin0.setFreq(baseFreq);
-		break;
-	case 1:
-		aSin1.setFreq(baseFreq);
-		break;
-//	case 2:
-//		aSin2.setFreq(baseFreq);
-//		break;
-//	case 3:
-//		aSin3.setFreq(baseFreq);
-//		break;
-//	case 4:
-//		aSin4.setFreq(baseFreq);
-//		break;
-//	case 5:
-//		aSin5.setFreq(baseFreq);
-//		break;
-	}
+	// nothing to do ?
 }
 
 byte currentEnvelop = 0;
@@ -109,11 +82,11 @@ void updateEnvelop() {
 	switch (currentEnvelop) {
 	case 1:
 		envADSR.setLevels(255, 150, 50, 0);
-		envADSR.setTimes(100, 100, 200, 100);
+		envADSR.setTimes(20, 100, 200, 100);
 		envADSR.noteOn(true);
 		break;
 	case 2:
-		envADSR.setLevels(255, 150, 150, 0);
+		envADSR.setLevels(255, 180, 150, 0);
 		envADSR.setTimes(10, 200, 500, 300);
 		envADSR.noteOn(true);
 		break;
@@ -152,7 +125,9 @@ int8_t currentNote = 0;
 void setNote(int8_t n) {
 	currentNote = n;
 	baseFreq = mtof(currentNote);
-	updateMode();
+	for(byte i = 0; i< NB_HARMONICS; i++) {
+		harmonicOscils[i].setFreq(baseFreq * (i+1));
+	}
 	updateEnvelop();
 }
 
@@ -166,7 +141,7 @@ typedef struct __attribute__((__packed__)) _recordEntry {
 
 typedef struct _record {
 	byte loop:1;
-	byte mode:3;
+	byte harmonic:3;
 	byte envelop:3;
 	byte length;
 	RecordEntry entries[MAX_RECORD_ENTRIES];
@@ -198,7 +173,7 @@ void prepareRecord(byte num) {
 	}
 	currentRecord = record + num;
 	currentRecord->envelop = currentEnvelop;
-	currentRecord->mode = currentMode;
+	currentRecord->harmonic = currentHarmonic;
 	currentRecord->loop= (recordingState & RECORDING_LOOP_MSK) ? 1 : 0;
 	currentRecordIndex = 0;
 	recordingState = RECORDING_RECORD_MSK | (recordingState & RECORDING_LOOP_MSK) | num;
@@ -238,6 +213,9 @@ void startReplay(byte num) {
 	currentRecord = record + num;
 	currentRecordIndex = 0;
 	recordingState = RECORDING_PLAY | num;
+
+	currentHarmonic= currentRecord->harmonic;
+	currentEnvelop = currentRecord->envelop;
 }
 
 void handleKey(word fullCode);
@@ -323,9 +301,12 @@ void handleKey(word fullCode) {
 
 		// signal keys F1..F6
 		} else if (code >= PS2_KEY_F1 && code <= PS2_KEY_F6) {
-			currentMode = code - PS2_KEY_F1;
-			DEBUG( Serial.print("mode ");Serial.println(currentMode); )
-			updateMode();
+			byte v = code - PS2_KEY_F1;
+			if (v < NB_TABLES) {
+				currentHarmonic = v;
+				DEBUG( Serial.print("mode ");Serial.println(currentHarmonic); )
+				updateMode();
+			}
 
 		// currentEnvelop keys
 		} else if (code >= PS2_KEY_F7 && code <= PS2_KEY_F12) {
@@ -395,45 +376,17 @@ void updateControl() {
 }
 
 AudioOutput_t updateAudio() {
-	int16_t base = 0, e = 256, sampleValue = 0;
+	int32_t base = 0, e = 256, sampleValue = 0;
 
-	if (currentNote != 0) {
-		switch (currentMode) {
-		case 0:
-			base = aSin0.next();
-			break;
-		case 1:
-			base = aSin1.next();
-			break;
-	//	case 2:
-	//		base = aSin2.next();
-	//		break;
-	//	case 3:
-	//		base = aSin3.next();
-	//		break;
-	//	case 4:
-	//		base = aSin4.next();
-	//		break;
-	//	case 5:
-	//		base = aSin5.next();
-	//		break;
-		}
+//	if (currentNote != 0) {
+//		for(byte i = 0; i < NB_HARMONICS; i++) {
+//			base += harmonicOscils[i].next() * harmonicTables[currentHarmonic].ratios[i];
+//		}
+//		return MonoOutput::fromNBit(8 + harmonicTables[currentHarmonic].bitShift, base);
+//	} else {
+//		return 0;
+//	}
 
-		switch (currentEnvelop) {
-		case 1:
-		case 2:
-			if (envADSR.playing()) {
-				e = envADSR.next();
-			} else {
-				e = 0;
-			}
-			break;
-		case 3:
-		case 4:
-			e = envSin.next();
-			break;
-		}
-	}
 
 	if (currentSample == 100 || currentSample == 101) {
 		sampleValue = sample.next();
@@ -449,24 +402,59 @@ AudioOutput_t updateAudio() {
 		}
 	}
 
-	return MonoOutput::fromNBit(18, base * e + 512L * sampleValue);
+	byte bits = 18; // 8 for value + 8 for envelope + 2 to reduce volume lower to sample one
+	if (currentNote != 0) {
+//		base = harmonicOscils[0].next();
+
+		switch (currentEnvelop) {
+		case 1:
+		case 2:
+			if (envADSR.playing()) {
+				e = envADSR.next();
+			} else {
+				e = 0;
+			}
+			break;
+		case 3:
+		case 4:
+			e = envSin.next();
+			break;
+		}
+
+		for(byte i = 0; i< NB_HARMONICS; i++) {
+			base += harmonicOscils[i].next() * harmonicTables[currentHarmonic].ratios[i];
+		}
+		bits += harmonicTables[currentHarmonic].bitShift;
+	}
+
+	return MonoOutput::fromNBit(bits, (base * e) + (sampleValue << (bits - 8)));
 }
 
 void setup(){
 	DEBUG( Serial.begin(115200); )
 
+	DEBUG( Serial.println("Kbd"); )
 	keyboard.begin(DATAPIN, IRQPIN);
 	keyboard.setLock(PS2_LOCK_NUM);
 
+	DEBUG( Serial.println("harmonic"); )
+	for(byte i = 0; i < NB_HARMONICS; i++) {
+		harmonicOscils[i].setTable(SIN1024_DATA);
+	}
+
+	DEBUG( Serial.println("bamboo"); )
 	bamboo.setFreq((float) BAMBOO_00_1024_SAMPLERATE / (float) BAMBOO_00_1024_NUM_CELLS);
 	bamboo.setLoopingOff();
 	bamboo.rangeWholeSample();
 
+	DEBUG( Serial.println("bomb"); )
 	sample.setFreq((float) ABOMB_SAMPLERATE / (float) ABOMB_NUM_CELLS);
 	sample.setLoopingOff();
 	sample.setTable(ABOMB_DATA);
 
+	DEBUG( Serial.println("startMozzi"); )
 	startMozzi(CONTROL_RATE);
+
 	DEBUG( Serial.println("OK"); )
 }
 
